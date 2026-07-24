@@ -42,7 +42,7 @@ metadata and the block stream using those fields, never by assuming 64.
 | 12 | 4 | u32 | `block_stride` | bytes per block on disk, ≥ `block_bytes` (§4.2) |
 | 16 | 8 | f64 | `sample_rate_hz` | complex samples/s. Fractional rates permitted |
 | 24 | 8 | f64 | `center_freq_hz` | tuned centre of the recording |
-| 32 | 8 | i64 | `start_time_unix_ns` | UTC nanoseconds of the first sample. 0 = unknown |
+| 32 | 8 | i64 | `start_time_unix_ns` | UTC nanoseconds of this file's first sample. 0 = unknown. Per segment, from the clock — see §10.1 |
 | 40 | 8 | f64 | `ref_dbm_full_scale` | dBm of a full-scale sine. NaN = uncalibrated (§6) |
 | 48 | 8 | u64 | `data_bytes` | length of the block stream. **0 = read to EOF (§7)** |
 | 56 | 4 | u32 | `meta_bytes` | length of the JSON blob. MUST be a multiple of 8 |
@@ -222,7 +222,10 @@ A conforming **decoder** MUST:
 
 A conforming **encoder** MUST write a header that satisfies §2, MUST NOT vary
 `b`, `N`, or `block_stride` within a file, and SHOULD start a new file when a
-parameter needs to change.
+parameter needs to change. An encoder that writes a segment series MUST stamp
+each segment's `start_time_unix_ns` from the clock rather than deriving it
+(§10.1), and one that continues through a known sample gap MUST record it
+(§10.2).
 
 The exponent an encoder picks is **not** part of conformance: any exponent that
 does not clip the block is legal, and decoders never depend on the choice. The
@@ -256,7 +259,65 @@ Additive changes that a v1 reader can safely ignore — new JSON keys, new
 stream or the meaning of an existing header field takes a new magic (`BIQ2`).
 Readers MUST reject unknown magic rather than guess.
 
-## 10. File naming
+## 10. Segmentation and time
+
+Long recordings are normally split into a series of segment files. Each segment
+is a complete, independently valid `.biq` file with its own header.
+
+### 10.1 Absolute time
+
+Within a file, the UTC time of complex sample `s` is:
+
+```
+t(s) = start_time_unix_ns + round(s * 1e9 / sample_rate_hz)
+```
+
+`start_time_unix_ns` of each segment **MUST be sampled from the clock at the
+moment that segment's own first sample was captured.** It MUST NOT be derived
+from an earlier segment's start time plus an elapsed-sample count.
+
+This is the requirement that makes time survive damage, and it is easy to get
+wrong because the arithmetic version looks equivalent and is simpler to write.
+It is not equivalent. When each segment is stamped independently:
+
+- A segment that is lost, corrupted, or truncated leaves every other segment's
+  timing untouched. Nothing is chained, so nothing propagates.
+- Timing error cannot accumulate across a recording. Whatever a segment gets
+  wrong is corrected at the next segment boundary.
+- A truncated segment keeps correct time for the samples it does hold, because
+  the header is written at open and the time reference sits at byte 0.
+- Corruption inside the block stream does not desync time: the fixed stride
+  makes sample index positional, so samples after the damage are still at the
+  right offset and therefore the right timestamp.
+
+Derived timestamps lose all four. One segment written with a wrong sample count
+shifts every timestamp after it, and nothing in the file indicates it happened.
+
+### 10.2 Dropped samples
+
+The one failure this format cannot absorb on its own is samples the source
+dropped without the recorder noticing — a USB overrun, a ring-buffer overflow.
+The file then looks continuous while every timestamp after the gap runs late,
+which is worse than an obvious failure because it is plausible.
+
+A recorder that detects a discontinuity in its input **SHOULD finalise the
+current segment and start a new one at the gap.** The drop then becomes an
+ordinary segment boundary carrying a fresh clock reading, which is correct by
+construction and requires no cooperation from anything downstream.
+
+A recorder that continues writing through a known gap MUST record it as a
+`biq:events` entry (§3) with `gap_samples`. Note that the JSON is written at
+finalise, so a recorder that dies before finalising loses the gap record even
+though the samples are intact — which is why rolling a segment is preferred: it
+commits the timing fact to the filesystem immediately instead of promising to
+write it down later.
+
+Readers MUST NOT assume that consecutive segments are gapless. Compare
+`start_time_unix_ns` against the previous segment's start plus its duration; a
+difference beyond the clock's own resolution is a real gap, not a rounding
+artefact.
+
+### 10.3 File naming
 
 Not normative, but recommended, matching the convention SpectraFlux already
 uses for its segmented recordings:
@@ -267,3 +328,7 @@ IQ_20260717_211008_100000000Hz_5000000sps_001.biq
 
 Segments of one recording share the base name and differ only in the trailing
 counter. Sort by name, not by date, to group a series.
+
+The timestamp in the name is a convenience, not a substitute for
+`start_time_unix_ns` — but it does mean a segment whose header is damaged can
+still be placed in the series to within a second.

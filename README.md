@@ -33,7 +33,7 @@ decision. At 6 bits it is 2.7× smaller than int16; that same 24-hour capture is
 
 Holding `N` and `b` constant for a whole file is the design decision the rest of
 the format hangs on. It costs nothing (change parameters at a segment boundary
-instead) and it buys three things no compressed format usually has:
+instead) and it buys four things no compressed format usually has:
 
 **Constant-time seek.** No index, no scan — the offset of any sample is
 arithmetic:
@@ -56,6 +56,22 @@ file", for free, with no sidecar index.
 a recorder killed by a crash or a full disk leaves a fully readable file minus
 at most the final partial block. A WAV in the same situation has a bogus
 `dataSize` and needs repair tooling.
+
+**Time that survives damage.** Because the stride is fixed, a sample's index is
+positional — so corruption in the middle of a file cannot desync the index, and
+samples *after* the damage are still at the right timestamp. The time reference
+itself sits at byte 0 and is written before the first sample, so truncation
+never reaches it. And every segment carries its own clock reading rather than
+counting forward from the first one ([SPEC §10.1](SPEC.md)), so a lost or
+corrupt segment leaves the rest of the series correctly timed and error cannot
+accumulate across a recording.
+
+The failure this *doesn't* absorb is samples the source dropped without the
+recorder noticing — the file then looks continuous while everything after the
+gap runs late, which is worse than an obvious failure. The spec's answer is to
+roll a new segment at the gap so the drop becomes an ordinary boundary with a
+fresh, correct-by-construction timestamp, rather than a note in the metadata
+that a dying recorder might never write.
 
 ## Size
 
@@ -161,10 +177,28 @@ used in anger.
 point itself — the technique, the exponent rule, how to choose `b`, and how it
 compares to block scaling and to entropy coders. It is the reading for *why*.
 
-This repo is the *file*: a container around blocks that are byte-identical to
-the ones bfp-iq-codec defines for streaming. One codec, two transports. If you have
-already implemented bfp-iq-codec, adding `.biq` is a header parser and a seek formula.
+This repo is the *file*: a container around blocks that are byte-identical to the
+ones bfp-iq-codec defines for streaming. One codec, two transports. If you have
+already implemented bfp-iq-codec, adding `.biq` is a header parser and a seek
+formula.
 
 ## License
 
 MIT. See [LICENSE](LICENSE). Use it, ship it, port it.
+
+There is nothing here to own. Block floating point is decades-old textbook DSP,
+and this is sixty-four bytes of header wrapped around it. The spec is
+deliberately small enough to implement in an afternoon, the metadata keys are
+SigMF's rather than mine because the world does not need a second vocabulary for
+"sample rate", and the golden vectors are checked in so nobody has to take my
+word for what the bytes should be. If the container doesn't suit you, take the
+ideas out of it — the fixed stride, the exponent envelope, the header that
+survives a truncated file — and put them somewhere better.
+
+I wrote it down because IQ is the raw material of everything interesting in
+radio, and we throw it away constantly. Captures deleted to free a disk. The
+good five seconds kept and all the context around them lost. Band surveys never
+run because a week of spectrum is a wall of terabytes. Being four times smaller
+doesn't change what's possible in principle — it changes what people actually
+keep. If this means one more recording survives, or somebody hands over a whole
+capture instead of a screenshot of it, it did its job.
