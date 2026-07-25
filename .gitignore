@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# built by reference/Makefile
+reference/biqconv
+reference/biq_test
+*.o
+
+# test captures — golden/ is checked in on purpose, everything else is not
+*.biq
+*.wav
+*.cs16
+*.sigmf-data
+*.sigmf-meta
