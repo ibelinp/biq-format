@@ -10,24 +10,26 @@ metadata blob, then a stream of fixed-size BFP blocks. That's the whole format.
 
 ## Why
 
-Every IQ recording format in common use is the same thing wearing different
-headers. WAV with a SpectraVue `auxi` chunk, RF64, SigMF `ci16_le`, Rohde &
-Schwarz `.wv`, headerless `.cs16` — all of them are **interleaved 16-bit
-integers, 4 bytes per complex sample**, differing only in how they spell the
-sample rate and the centre frequency. A 24-hour capture at 5 Msps is 1.7 TB.
+Every IQ recording format in common use stores raw samples at a **fixed scale**.
+`cu8` off an RTL dongle is 2 bytes a sample. `ci16` — WAV with a SpectraVue
+`auxi` chunk, RF64, SigMF `ci16_le`, Rohde & Schwarz `.wv`, headerless `.cs16` —
+is 4. GNU Radio's `cf32` is 8. They differ in depth, and in how they spell the
+sample rate and the centre frequency, and in nothing else that matters: the
+scale is the same whatever the signal is doing. A 24-hour capture at 5 Msps is
+864 GB, 1.7 TB, or 3.5 TB depending which one you picked.
 
 The obvious fix is to compress, and the obvious compressors are all wrong for
 this. FLAC and gzip are variable-rate and stateful, so you can't seek without
-an index and you can't predict the size. Just dropping to 8-bit works but
-wastes range: a scale sized for the loud case quantises the quiet case near the
+an index and you can't predict the size. Dropping to 8 bits works but wastes
+range: a scale sized for the loud case quantises the quiet case near the
 bottom. Server-side AGC destroys the levels you wanted to record in the first
 place.
 
 Block floating point sidesteps all three. A block of N samples shares one
 exponent and stores a `b`-bit mantissa per component, so the scale follows the
 signal — and the exponent is *bookkeeping the decoder undoes*, not a gain
-decision. At 6 bits it is 2.7× smaller than int16; that same 24-hour capture is
-470 GB.
+decision. At 6 bits it is 2.7× smaller than `ci16`; that same 24-hour capture is
+650 GB.
 
 ## What you get for keeping the block size fixed
 
