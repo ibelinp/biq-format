@@ -2,7 +2,7 @@
 #
 #   make          build biqconv
 #   make test     build and run the self-test (includes the Rust golden vectors)
-#   make golden   regenerate golden/ from the Rust encoder (needs the SpectraWeb tree)
+#   make golden   regenerate golden/ from the Rust encoder (needs the Skywave tree)
 
 CXX      ?= c++
 CXXFLAGS ?= -std=c++11 -O2 -Wall -Wextra
