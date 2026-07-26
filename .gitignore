@@ -7,8 +7,9 @@ reference/biqconv
 reference/biq_test
 *.o
 
-# test captures — golden/ is checked in on purpose, everything else is not
+# test captures — golden/ and samples/ are checked in on purpose, nothing else is
 *.biq
+!samples/*.biq
 *.wav
 *.cs16
 *.sigmf-data
