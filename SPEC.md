@@ -82,7 +82,7 @@ translation to and from a `.sigmf-meta` sidecar is mechanical:
   "core:datetime": "2026-07-17T21:10:08.000000Z",
   "core:author": "Pieter Ibelings",
   "core:hw": "ADALM-Pluto",
-  "core:recorder": "SpectraWeb 0.2.0",
+  "core:recorder": "Skywave 0.2.0",
   "core:geolocation": { "type": "Point", "coordinates": [-80.1, 26.1, 3.0] },
 
   "biq:events": [
