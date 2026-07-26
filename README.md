@@ -111,9 +111,18 @@ stream — keeping the stream pure is what preserves the fixed stride.
 
 ```sh
 cd reference && make        # builds biqconv, no dependencies
+./biqconv info ../samples/fm-band-95.5MHz-2Msps-b6-general.biq
+./biqconv ../samples/fm-band-95.5MHz-2Msps-b6-general.biq back.wav
+```
+
+Nothing to download first — [`samples/`](samples/) ships with the repo, and
+`back.wav` is an ordinary 16-bit IQ WAV that any SDR tool will open.
+
+With a recording of your own:
+
+```sh
 ./biqconv capture.wav capture.biq -b 6
 ./biqconv info capture.biq
-./biqconv capture.biq back.wav
 ```
 
 Measured on a 25-second 5 Msps FM-band capture from an ADALM-Pluto:
@@ -136,13 +145,7 @@ decoded.
 
 No receiver, or a WAV `biqconv` won't read? [`samples/`](samples/) holds the
 same 5-second capture at all three profiles, so you can start from real `.biq`
-files and convert nothing:
-
-```sh
-cd reference && make
-./biqconv info ../samples/fm-band-95.5MHz-2Msps-b6-general.biq
-./biqconv ../samples/fm-band-95.5MHz-2Msps-b6-general.biq back.wav
-```
+files and convert nothing.
 
 | file | profile | b | size | vs. int16 |
 |---|---|---|---|---|
